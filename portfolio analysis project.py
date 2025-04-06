@@ -9,7 +9,7 @@ import pandas as pd
 import statsmodels.api as sm
 from datetime import datetime, timedelta
 from scipy.stats import linregress,skew, kurtosis, norm
-from scipy.optimize import minimize, norm, skew, kurtosis
+from scipy.optimize import minimize
 from scipy.stats.mstats import gmean
 
 
@@ -61,9 +61,6 @@ while True:
         "Number of Shares": investment_amount
     })
 #%%
-# removes temporary variables
-del trading_decisions, transaction_type, investment_date, investment_decision, investment_amount
-
 investment_data = pd.DataFrame(investment_data)
 
 #%% 
@@ -132,7 +129,7 @@ if not filtered_data.empty:
         date = row["Transaction Date"]
         amount = row["Number of Shares"]
 
-        if stock == "cash":
+        if stock in ["Deposit", "Withdrawal"]:
             if action == "deposit":
                 portfolio['cash'] += amount
                 total_invested += amount
@@ -158,8 +155,6 @@ if not filtered_data.empty:
         elif action == "sell":
             portfolio[stock] -= shares
 
-if not investment_data.empty:
-    portfolio['cash'] = investment_data.iloc[0]["Number of Shares"]  
 #%%
 # Compute geometric return
 #Sets dates
@@ -320,12 +315,12 @@ elif interval == "1wk":
     spypctchange3 = spypctchange3.resample('W').apply(lambda x: np.prod(1 + x) - 1)
     spypctchange5 = spypctchange5.resample('W').apply(lambda x: np.prod(1 + x) - 1)
 elif interval == "1mo":
-    portfoliopctchange1 = portfoliopctchange1.resample('M').apply(lambda x: np.prod(1 + x) - 1)
-    portfoliopctchange3 = portfoliopctchange3.resample('M').apply(lambda x: np.prod(1 + x) - 1)
-    portfoliopctchange5 = portfoliopctchange5.resample('M').apply(lambda x: np.prod(1 + x) - 1)
-    spypctchange1 = spypctchange1.resample('M').apply(lambda x: np.prod(1 + x) - 1)
-    spypctchange3 = spypctchange3.resample('M').apply(lambda x: np.prod(1 + x) - 1)
-    spypctchange5 = spypctchange5.resample('M').apply(lambda x: np.prod(1 + x) - 1)
+    portfoliopctchange1 = portfoliopctchange1.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
+    portfoliopctchange3 = portfoliopctchange3.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
+    portfoliopctchange5 = portfoliopctchange5.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
+    spypctchange1 = spypctchange1.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
+    spypctchange3 = spypctchange3.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
+    spypctchange5 = spypctchange5.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
 else:
     raise ValueError("Invalid interval. Use '1d', '1wk', or '1mo'.")
 
@@ -410,40 +405,46 @@ plt.show()
 #%% Cleans up used variables
 del data1, data3, data5, beta1, beta3, beta5, x1, x3, x5, y1, y3, y5, std_err1, std_err3, std_err5, p_value1, p_value3, p_value5, years_elapsed, stocks_to_pull
 del today, stock, slope1, slope3, slope5, r2_1yr, r2_3yr, r2_5yr, r_value1, r_value3, r_value5, interval, end_date_input, end_date, intercept1,intercept3,intercept5
-del date, date_start1, date_start3,date_start5, i, portfolio_value_start, portfolio_value_end, row, stock_data, index, transaction_date, filtered_data
+del date, date_start1, date_start3,date_start5, i, portfolio_value_start, row, stock_data, index, transaction_date, filtered_data
 #%%
+common_dates = spypctchange.index.intersection(portfoliopctchange.index)
+spypctchange_filtered = spypctchange.loc[common_dates]
+
+spypctchange_filtered = spypctchange_filtered.squeeze()
 
 # Calculate the active return (difference between portfolio and benchmark)
-active_return = portfoliopctchange - spypctchange
+
+active_return = portfoliopctchange - spypctchange_filtered
 
 # Compute tracking error (standard deviation of active return)
-tracking_error = np.std(active_return, ddof=1)  # Using ddof=1 for sample standard deviation
+tracking_error = np.std(active_return, ddof=1,axis=0)
 
 print(f"Tracking Error: {tracking_error:.6f}")
 #%%
 # Load risk-free rate data
-risk_free_df = pd.read_csv(r"C:\Users\micha\Desktop\Data (DO NOT MOVE OR CHANGE VARIABLE NAMES)\Risk-Free Rate (Market Yield at 10-year constant maturity.csv", parse_dates=["date"])
-risk_free_df.set_index("date", inplace=True)  # Set date as index
+risk_free_df = pd.read_csv(r"C:\Users\micha\Desktop\Data (DO NOT MOVE OR CHANGE VARIABLE NAMES)\Risk-Free Rate (Market Yield at 10-year constant maturity.csv", parse_dates=["Date"])
+risk_free_df.set_index("Date", inplace=True)  # Set date as index
 
 
 # Fill missing risk-free rate data by forward filling
-risk_free_df['risk_free_rate'] = risk_free_df['risk_free_rate'].fillna(method='ffill')
+risk_free_df['Risk Free Rate'] = risk_free_df['Risk Free Rate'].ffill()
+
 
 # Assuming portfoliopctchange and spypctchange are already Pandas Series with a date index
 df = pd.DataFrame({
     "Rp": portfoliopctchange,
-    "Rb": spypctchange
+    "Rb": spypctchange_filtered
 })
 
 # Merge with risk-free rate data based on the date index
 df = df.join(risk_free_df, how="inner")
 
 # Convert risk-free rate to daily (if it's annualized)
-df["Rf"] /= 252  # Adjust if necessary based on your data
+df["Risk Free Rate"] /= 252  # Adjust if necessary based on your data
 
 # Compute excess returns
-df["Excess_Rp"] = df["Rp"] - df["Rf"]
-df["Excess_Rb"] = df["Rb"] - df["Rf"]
+df["Excess_Rp"] = df["Rp"] - df["Risk Free Rate"]
+df["Excess_Rb"] = df["Rb"] - df["Risk Free Rate"]
 
 # Run OLS regression to calculate alpha and beta
 X = sm.add_constant(df["Excess_Rb"])  # Independent variable (benchmark excess return)
@@ -452,8 +453,62 @@ y = df["Excess_Rp"]  # Dependent variable (portfolio excess return)
 model = sm.OLS(y, X).fit()
 
 # Extract alpha and beta
-alpha = model.params[0]
-beta = model.params[1]
+alpha = model.params.iloc[0]
+beta = model.params.iloc[1]
+
 
 print(f"Alpha: {alpha:.6f}")
 print(f"Beta: {beta:.6f}")
+
+#%%
+
+# Calculate mean and standard deviation
+mean_return = np.mean(portfoliopctchange)
+std_dev = np.std(portfoliopctchange)
+
+# Monte Carlo simulation parameters
+num_simulations = 10000
+num_days = 252
+
+# Simulate returns
+simulated_returns = np.random.normal(loc=mean_return, scale=std_dev, size=(num_days, num_simulations))
+
+simulated_price_paths = np.cumprod(1 + simulated_returns, axis=0)
+
+
+simulated_price_paths *= portfolio_value_end
+
+# Compute ending values for each simulation
+ending_values = simulated_price_paths[-1]
+
+average_path = np.mean(simulated_price_paths, axis=1)
+
+# Calculate percentiles
+percentile_10 = np.percentile(ending_values, 10)
+percentile_90 = np.percentile(ending_values, 90)
+percentile_50 = np.percentile(ending_values, 50)
+
+print(f"10% of the simulations ended below ${percentile_10:,.2f}")
+print(f"10% of the simulations ended above ${percentile_90:,.2f}")
+print(f"The average return of the simulation was ${percentile_50:,.2f}")
+# Plotting
+plt.figure(figsize=(14, 7))
+
+# Plot all paths faintly
+plt.plot(simulated_price_paths, linewidth=0.5, alpha=0.2)
+
+# Plot average
+plt.plot(average_path, color='blue', linewidth=2, label='Average')
+
+# Chart details
+plt.title('Monte Carlo Simulation of Portfolio Value')
+plt.xlabel('Days')
+plt.ylabel('Portfolio Value ($)')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+#%% Fama French 5 factor model
+
+
