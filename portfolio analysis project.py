@@ -7,7 +7,7 @@ import pandas as pd
 import statsmodels.api as sm
 from datetime import datetime, timedelta
 from scipy.stats import linregress,skew, kurtosis, norm
-from scipy.optimize import minimize, norm, skew, kurtosis
+from scipy.optimize import minimize
 from scipy.stats.mstats import gmean
 #%%
 # Stores inputs
@@ -61,7 +61,6 @@ del trading_decisions, transaction_type, investment_date, investment_decision, i
 
 investment_data = pd.DataFrame(investment_data)
 
-#%% 
 # Pulling data from yfinance
 ## Filters data we need
 filtered_data = investment_data[~investment_data['Stock'].str.contains('Deposit|Withdrawal', na=False)]
@@ -70,33 +69,24 @@ if not filtered_data.empty:
 
 #%%
 stocks_to_pull = filtered_data.groupby('Stock').head(1)
-
 stocks_to_pull = stocks_to_pull[['Stock', 'Transaction Date']].reset_index(drop=True)
 
 #pulls from yfinance
-
 today = datetime.today().date()
 stock_data = []
-
 
 for index, row in stocks_to_pull.iterrows():
     stock = row['Stock']
     transaction_date = row['Transaction Date']
-    
-
     stock_info = yf.download(stock, start=transaction_date, end=today)
-    
-
     globals()[stock] = stock_info[['Open', 'Close']]
-
-
 #%%
 #makes dict of stock data
 dict_of_stocks = {stock: globals()[stock] for stock in stocks_to_pull['Stock']}
 
 #removes multi-index
 for ticker, df in dict_of_stocks.items():
-    df.columns = [col[1] for col in df.columns]  # Flatten to just column names like "Open", "Close"
+    df.columns = [col[1] for col in df.columns]  # Flatten to just column names "Open", "Close"
 
 #forces columns to be called "open" and "close"
 for ticker, df in dict_of_stocks.items():
@@ -251,18 +241,12 @@ portfolio_value_df.index.name = 'Date'
 portfolio_value_df = portfolio_value_df.dropna()
 portfolio_value_df['Daily Return'] = portfolio_value_df['Portfolio Value'].pct_change()
 #%% Finding the portfolio beta
-
 #Select interval for beta ('1d', '1wk', or '1mo' usually work best)
 interval = input("\nWhat interval do you want to use to find the portfolio beta? (1d,1wk, or 1mo)")
-
-
 # Pulls data and adds a pctchange value to the df
-
 portfoliopctchange = portfolio_value_df['Daily Return'].dropna()
-
 #downloads SPDR
 spydata = yf.download('SPY', auto_adjust=True, interval = '1d')
-
 spypctchange = spydata['Close'].pct_change()
 
 #Rename column
@@ -285,8 +269,9 @@ date_start5 = date_start1.replace(year=date_start1.year - 4)
 
 
 # Convert Series to DataFrames if necessary         
+portfoliopctchange.name = 'Portfolio Return'
 portfoliopctchangedf = portfoliopctchange.to_frame()
-portfoliopctchangedf = portfoliopctchangedf.rename(columns={'Daily Return':'Portfolio Return'})
+
 
 #sets range of dates
 spypctchange1 = spypctchange.loc[date_start1:date_end - timedelta(days = 1)]
@@ -315,26 +300,22 @@ elif interval == "1wk":
     spypctchange3 = spypctchange3.resample('W').apply(lambda x: np.prod(1 + x) - 1)
     spypctchange5 = spypctchange5.resample('W').apply(lambda x: np.prod(1 + x) - 1)
 elif interval == "1mo":
-    portfoliopctchange1 = portfoliopctchange1.resample('M').apply(lambda x: np.prod(1 + x) - 1)
-    portfoliopctchange3 = portfoliopctchange3.resample('M').apply(lambda x: np.prod(1 + x) - 1)
-    portfoliopctchange5 = portfoliopctchange5.resample('M').apply(lambda x: np.prod(1 + x) - 1)
-    spypctchange1 = spypctchange1.resample('M').apply(lambda x: np.prod(1 + x) - 1)
-    spypctchange3 = spypctchange3.resample('M').apply(lambda x: np.prod(1 + x) - 1)
-    spypctchange5 = spypctchange5.resample('M').apply(lambda x: np.prod(1 + x) - 1)
+    portfoliopctchange1 = portfoliopctchange1.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
+    portfoliopctchange3 = portfoliopctchange3.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
+    portfoliopctchange5 = portfoliopctchange5.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
+    spypctchange1 = spypctchange1.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
+    spypctchange3 = spypctchange3.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
+    spypctchange5 = spypctchange5.resample('ME').apply(lambda x: np.prod(1 + x) - 1)
 else:
     raise ValueError("Invalid interval. Use '1d', '1wk', or '1mo'.")
 
 #%%
-
-
 #makes full df
 data1 = spypctchange1.join(portfoliopctchange1)
 
 data3 = spypctchange3.join(portfoliopctchange3)
 
 data5 = spypctchange5.join(portfoliopctchange5)
-
-
 #%%
 # Calculate beta, intercept, and R² for 1-year data
 x1 = data1['SPY']
@@ -404,55 +385,91 @@ plt.tight_layout()
 plt.show()
 #%% Cleans up used variables
 del data1, data3, data5, beta1, beta3, beta5, x1, x3, x5, y1, y3, y5, std_err1, std_err3, std_err5, p_value1, p_value3, p_value5, years_elapsed, stocks_to_pull
-del today, stock, slope1, slope3, slope5, r2_1yr, r2_3yr, r2_5yr, r_value1, r_value3, r_value5, interval, end_date_input, end_date, intercept1,intercept3,intercept5
-del date, date_start1, date_start3,date_start5, i, portfolio_value_start, row, stock_data, index, transaction_date, filtered_data
+del stock, slope1, slope3, slope5, r2_1yr, r2_3yr, r2_5yr, r_value1, r_value3, r_value5, interval, end_date_input, end_date, intercept1,intercept3,intercept5
+del date_start1, date_start3,date_start5, i, portfolio_value_start, row, stock_data, index, transaction_date, filtered_data
+#%% Adjusts portfoliopctchange for inflation
+#imports data from FRED
+inflation_data = pd.read_csv('https://fred.stlouisfed.org/graph/fredgraph.csv?id=T10YIEM')
 #%%
+inflation_data = inflation_data.set_index('observation_date')
+inflation_data.rename(columns={'T10YIEM': 'inflation'}, inplace=True)
+#%%
+#datetime conversion
+inflation_data.index = pd.to_datetime(inflation_data.index)
 
+# Create daily date range
+daily_index = pd.date_range(start=inflation_data.index.min(),end=inflation_data.index.max(),freq='D')
+
+#Reindex and interpolate
+daily_inflation = inflation_data.reindex(daily_index)
+daily_inflation['inflation'] = daily_inflation['inflation'].interpolate(method='linear')
+
+# Rename index
+daily_inflation.index.name = 'date'
+
+daily_inflation['daily_inflation_rate'] = (1 + daily_inflation['inflation'] / 100) ** (1 / 365) - 1
+
+#%% Adjusts portfolio for inflation
+# Join on date
+combined = portfoliopctchange.to_frame().join(daily_inflation[['daily_inflation_rate']], how='inner')
+#%%
+# Apply Fisher equation
+combined['inf_adj_portfolio_ret'] = combined['Portfolio Return'] - combined['daily_inflation_rate']
+
+# Final result
+inf_adj_portfolio_ret = combined[['inf_adj_portfolio_ret']]
+#%%
+#set portfoliopctchange to a df instead of a series
+portfoliopctchange = portfoliopctchange.to_frame()
+
+#%%
 # Calculate the active return (difference between portfolio and benchmark)
-active_return = portfoliopctchange - spypctchange
-
+active_return = portfoliopctchange['Portfolio Return'] - spypctchange['SPY']
 # Compute tracking error (standard deviation of active return)
 tracking_error = np.std(active_return, ddof=1)  # Using ddof=1 for sample standard deviation
-
 print(f"Tracking Error: {tracking_error:.6f}")
-#%%
-# Load risk-free rate data
-risk_free_df = pd.read_csv(r"C:\Users\micha\Desktop\Data (DO NOT MOVE OR CHANGE VARIABLE NAMES)\Risk-Free Rate (Market Yield at 10-year constant maturity.csv", parse_dates=["date"])
-risk_free_df.set_index("date", inplace=True)  # Set date as index
 
+# Load risk-free rate data
+risk_free_df = pd.read_csv(r"C:\Users\micha\Desktop\Data (DO NOT MOVE OR CHANGE VARIABLE NAMES)\Risk-Free Rate (Market Yield at 10-year constant maturity.csv", parse_dates=['Date'])
+risk_free_df.set_index("Date", inplace=True)  # Set date as index
 
 # Fill missing risk-free rate data by forward filling
-risk_free_df['risk_free_rate'] = risk_free_df['risk_free_rate'].fillna(method='ffill')
+risk_free_df['risk_free_rate'] = risk_free_df['Risk Free Rate'].ffill()
 
-# Assuming portfoliopctchange and spypctchange are already Pandas Series with a date index
-df = pd.DataFrame({
-    "Rp": portfoliopctchange,
-    "Rb": spypctchange
-})
+portfoliopctchange = portfoliopctchange.iloc[:, 0]
+spypctchange = spypctchange.iloc[:, 0].dropna()
 
-# Merge with risk-free rate data based on the date index
-df = df.join(risk_free_df, how="inner")
 
-# Convert risk-free rate to daily (if it's annualized)
-df["Rf"] /= 252  # Adjust if necessary based on your data
+#%% Need to add risk free rate to df from risk_free_df['Risk Free Rate'] and to change name of variable to something other than df
+olsdata = risk_free_df[['Risk Free Rate']].rename(columns={'Risk Free Rate': 'Rf'})
+olsdata['Rf'] = risk_free_df['Risk Free Rate']
 
+#adjusts dates to match data and forward fills nan dates
+olsdata = olsdata.loc[portfoliopctchange.index.min():portfoliopctchange.index.max()]
+
+#%%
+portfoliopctchange = portfoliopctchange.to_frame()
+spypctchange = spypctchange.to_frame()
+
+#%%
 # Compute excess returns
-df["Excess_Rp"] = df["Rp"] - df["Rf"]
-df["Excess_Rb"] = df["Rb"] - df["Rf"]
-
+olsdata['Rp'] = df['Open'] - df['Close']
+olsdata["Excess_Rp"] = portfoliopctchange['Portfolio Return'] - olsdata["Rf"]
+olsdata["Excess_Rb"] = spypctchange["SPY"] - olsdata["Rf"]
+olsdata = olsdata.dropna(axis = 0)
+#%%
 # Run OLS regression to calculate alpha and beta
-X = sm.add_constant(df["Excess_Rb"])  # Independent variable (benchmark excess return)
-y = df["Excess_Rp"]  # Dependent variable (portfolio excess return)
+X = sm.add_constant(olsdata["Excess_Rb"])  # Independent variable (benchmark excess return)
+y = olsdata["Excess_Rp"]  # Dependent variable (portfolio excess return)
 
 model = sm.OLS(y, X).fit()
 
-# Extract alpha and beta
-alpha = model.params[0]
-beta = model.params[1]
+# Extract alpha and beta using labels instead of positions
+alpha = model.params['const']  # Intercept (alpha)
+beta = model.params['Excess_Rb']  # Coefficient of the benchmark (beta)
 
 print(f"Alpha: {alpha:.6f}")
 print(f"Beta: {beta:.6f}")
-
 #%%
 
 # Calculate mean and standard deviation
@@ -460,7 +477,7 @@ mean_return = np.mean(portfoliopctchange)
 std_dev = np.std(portfoliopctchange)
 
 # Monte Carlo simulation parameters
-num_simulations = 10000
+num_simulations = 100000
 num_days = 252
 
 # Simulate returns
@@ -481,9 +498,13 @@ percentile_10 = np.percentile(ending_values, 10)
 percentile_90 = np.percentile(ending_values, 90)
 percentile_50 = np.percentile(ending_values, 50)
 
+profitable_simulations = np.sum(ending_values > portfolio_value_end)
+chance_of_profit = (profitable_simulations / num_simulations) * 100
+
 print(f"10% of the simulations ended below ${percentile_10:,.2f}")
 print(f"10% of the simulations ended above ${percentile_90:,.2f}")
 print(f"The average return of the simulation was ${percentile_50:,.2f}")
+print(f"The chance of making a profit after 1 year was {chance_of_profit:.2f}%")
 # Plotting
 plt.figure(figsize=(14, 7))
 
