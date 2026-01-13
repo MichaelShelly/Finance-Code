@@ -232,9 +232,7 @@ for date in all_dates:
     # If portfolio_value is 0 despite having cash or stocks, print to debug
     if portfolio_value == 0:
         print(f"Warning: Portfolio value is 0 for {date}. Stocks: {portfolio}, Cash: {portfolio['cash']}")
-    
-    # Save the portfolio value for the current day
-    portfolio_values[date] = portfolio_value
+
 #%%
 portfolio_value_df = pd.DataFrame.from_dict(portfolio_values, orient='index', columns=['Portfolio Value'])
 portfolio_value_df.index.name = 'Date'
@@ -252,33 +250,26 @@ spypctchange = spydata['Close'].pct_change()
 #Rename column
 spypctchange.columns = ['SPY']
 
-
-
 #%%
 #Cleans up temporary variables
-del amount, action, all_dates, stock_price, ticker, total_invested, total_shares_bought, valid_data, valid_dates, shares, portfolio_value, annual_return
+del amount, action, all_dates, ticker, total_invested, total_shares_bought, valid_data, valid_dates, shares, portfolio_value, annual_return
 #%%
 # Input the start date for the 1-year period
 date_start1 = today - timedelta(days=365)
-
 
 # Calculate other start dates and end dates
 date_end = end_date
 date_start3 = date_start1.replace(year=date_start1.year - 2)
 date_start5 = date_start1.replace(year=date_start1.year - 4)
 
-
 # Convert Series to DataFrames if necessary         
 portfoliopctchange.name = 'Portfolio Return'
 portfoliopctchangedf = portfoliopctchange.to_frame()
 
-
 #sets range of dates
 spypctchange1 = spypctchange.loc[date_start1:date_end - timedelta(days = 1)]
 
-
 portfoliopctchange1 = portfoliopctchangedf.loc[date_start1:date_end]
-
 
 portfoliopctchange3 = portfoliopctchangedf.loc[date_start3:date_end]
 spypctchange3 = spypctchange.loc[date_start3:date_end - timedelta(days = 1)]
@@ -311,17 +302,21 @@ else:
 
 #%%
 #makes full df
-data1 = spypctchange1.join(portfoliopctchange1)
+returns_1y = spypctchange1.join(portfoliopctchange1).dropna()
 
-data3 = spypctchange3.join(portfoliopctchange3)
+data3 = spypctchange3.join(portfoliopctchange3).dropna()
 
-data5 = spypctchange5.join(portfoliopctchange5)
+data5 = spypctchange5.join(portfoliopctchange5).dropna()
+
+#Bug Testing
+if len(returns_1y) < 10 or returns_1y['SPY'].var() == 0:
+    raise ValueError("Insufficient data for 1-year beta")
 #%%
 # Calculate beta, intercept, and R² for 1-year data
-x1 = data1['SPY']
-y1 = data1['Portfolio Return']
-beta1, intercept1 = np.polyfit(x1, y1, 1)
-slope1, intercept1, r_value1, p_value1, std_err1 = linregress(x1, y1)
+market_ret_1y = returns_1y['SPY']
+portfolio_ret_1y = returns_1y['Portfolio Return']
+beta1, intercept1 = np.polyfit(market_ret_1y, portfolio_ret_1y, 1)
+slope1, intercept1, r_value1, p_value1, std_err1 = linregress(market_ret_1y, portfolio_ret_1y)
 r2_1yr = r_value1**2
 
 # Calculate beta, intercept, and R² for 3-year data
@@ -339,17 +334,17 @@ slope5, intercept5, r_value5, p_value5, std_err5 = linregress(x5, y5)
 r2_5yr = r_value5**2
 
 # Print beta and R² values
-print(f"1-Year Beta: {beta1:.2f}, R²: {r2_1yr:.2f}")
-print(f"3-Year Beta: {beta3:.2f}, R²: {r2_3yr:.2f}")
-print(f"5-Year Beta: {beta5:.2f}, R²: {r2_5yr:.2f}")
+print(f"1-Year Raw Return Beta: {beta1:.2f}, R²: {r2_1yr:.2f}")
+print(f"3-Year Raw Return Beta: {beta3:.2f}, R²: {r2_3yr:.2f}")
+print(f"5-Year Raw Return Beta: {beta5:.2f}, R²: {r2_5yr:.2f}")
 
 
 # Define the figure and subplots
 fig, axs = plt.subplots(3, 1, figsize=(10, 15), constrained_layout=True)
 
 # Plot 1-Year data
-axs[0].scatter(x1, y1, color='blue', alpha=0.6, edgecolor='black', label='Data Points')
-axs[0].plot(x1, beta1 * x1 + intercept1, color='red', linewidth=2, label=f'Beta = {beta1:.2f}, R² = {r2_1yr:.2f}')
+axs[0].scatter(market_ret_1y, portfolio_ret_1y, color='blue', alpha=0.6, edgecolor='black', label='Data Points')
+axs[0].plot(market_ret_1y, beta1 * market_ret_1y + intercept1, color='red', linewidth=2, label=f'Beta = {beta1:.2f}, R² = {r2_1yr:.2f}')
 axs[0].set_xlabel('SPY Returns', fontsize=12)
 axs[0].set_ylabel("Portfolio Returns", fontsize=12)
 axs[0].set_title('1-Year Regression', fontsize=14, fontweight='bold')
@@ -384,7 +379,7 @@ plt.show()
 plt.tight_layout()
 plt.show()
 #%% Cleans up used variables
-del data1, data3, data5, beta1, beta3, beta5, x1, x3, x5, y1, y3, y5, std_err1, std_err3, std_err5, p_value1, p_value3, p_value5, years_elapsed, stocks_to_pull
+del returns_1y, data3, data5, beta1, beta3, beta5, market_ret_1y, x3, x5, portfolio_ret_1y, y3, y5, std_err1, std_err3, std_err5, p_value1, p_value3, p_value5, years_elapsed, stocks_to_pull
 del stock, slope1, slope3, slope5, r2_1yr, r2_3yr, r2_5yr, r_value1, r_value3, r_value5, interval, end_date_input, end_date, intercept1,intercept3,intercept5
 del date_start1, date_start3,date_start5, i, portfolio_value_start, row, stock_data, index, transaction_date, filtered_data
 #%% Adjusts portfoliopctchange for inflation
@@ -426,7 +421,7 @@ portfoliopctchange = portfoliopctchange.to_frame()
 # Calculate the active return (difference between portfolio and benchmark)
 active_return = portfoliopctchange['Portfolio Return'] - spypctchange['SPY']
 # Compute tracking error (standard deviation of active return)
-tracking_error = np.std(active_return, ddof=1)  # Using ddof=1 for sample standard deviation
+tracking_error = np.std(active_return, ddof=1, axis = 0)  # Using ddof=1 for sample standard deviation
 print(f"Tracking Error: {tracking_error:.6f}")
 
 # Load risk-free rate data
@@ -441,11 +436,11 @@ spypctchange = spypctchange.iloc[:, 0].dropna()
 
 
 #%% Need to add risk free rate to df from risk_free_df['Risk Free Rate'] and to change name of variable to something other than df
-olsdata = risk_free_df[['Risk Free Rate']].rename(columns={'Risk Free Rate': 'Rf'})
-olsdata['Rf'] = risk_free_df['Risk Free Rate']
+capm_data = risk_free_df[['Risk Free Rate']].rename(columns={'Risk Free Rate': 'Rf'})
+capm_data['Rf'] = risk_free_df['Risk Free Rate']
 
 #adjusts dates to match data and forward fills nan dates
-olsdata = olsdata.loc[portfoliopctchange.index.min():portfoliopctchange.index.max()]
+capm_data = capm_data.loc[portfoliopctchange.index.min():portfoliopctchange.index.max()]
 
 #%%
 portfoliopctchange = portfoliopctchange.to_frame()
@@ -453,14 +448,14 @@ spypctchange = spypctchange.to_frame()
 
 #%%
 # Compute excess returns
-olsdata['Rp'] = df['Open'] - df['Close']
-olsdata["Excess_Rp"] = portfoliopctchange['Portfolio Return'] - olsdata["Rf"]
-olsdata["Excess_Rb"] = spypctchange["SPY"] - olsdata["Rf"]
-olsdata = olsdata.dropna(axis = 0)
+capm_data['Rp'] = df['Open'] - df['Close']
+capm_data["Excess_Rp"] = portfoliopctchange['Portfolio Return'] - capm_data["Rf"]
+capm_data["Excess_Rb"] = spypctchange["SPY"] - capm_data["Rf"]
+capm_data = capm_data.dropna(axis = 0)
 #%%
 # Run OLS regression to calculate alpha and beta
-X = sm.add_constant(olsdata["Excess_Rb"])  # Independent variable (benchmark excess return)
-y = olsdata["Excess_Rp"]  # Dependent variable (portfolio excess return)
+X = sm.add_constant(capm_data["Excess_Rb"])  # Independent variable (benchmark excess return)
+y = capm_data["Excess_Rp"]  # Dependent variable (portfolio excess return)
 
 model = sm.OLS(y, X).fit()
 
@@ -469,60 +464,79 @@ alpha = model.params['const']  # Intercept (alpha)
 beta = model.params['Excess_Rb']  # Coefficient of the benchmark (beta)
 
 print(f"Alpha: {alpha:.6f}")
-print(f"Beta: {beta:.6f}")
-#%%
+print(f"OLS Beta (CAPM): {beta:.6f}")
 
-# Calculate mean and standard deviation
-mean_return = np.mean(portfoliopctchange)
-std_dev = np.std(portfoliopctchange)
+#%% Monte Carlo Simulation
 
-# Monte Carlo simulation parameters
-num_simulations = 100000
+# Simulation parameters
+num_simulations = 100_000
 num_days = 252
 
-# Simulate returns
-simulated_returns = np.random.normal(loc=mean_return, scale=std_dev, size=(num_days, num_simulations))
+# Calculate mean and std of daily portfolio returns
+mean_return = portfoliopctchange.mean()
+std_dev = portfoliopctchange.std()
 
-simulated_price_paths = np.cumprod(1 + simulated_returns, axis=0)
+# Simulate daily returns
+simulated_returns = np.random.normal(
+    loc=mean_return,
+    scale=std_dev,
+    size=(num_days, num_simulations)
+)
 
+# Compute cumulative growth paths, normalized to 1.0 at start
+simulated_paths = np.cumprod(1 + simulated_returns, axis=0)
 
-simulated_price_paths *= portfolio_value_end
+# Scale by final portfolio value for reference (optional for $ printing)
+simulated_price_paths = simulated_paths * portfolio_value_end
 
-# Compute ending values for each simulation
-ending_values = simulated_price_paths[-1]
-
-average_path = np.mean(simulated_price_paths, axis=1)
-
-# Calculate percentiles
+# Compute ending values and summary statistics
+ending_values = simulated_paths[-1]  # relative growth
 percentile_10 = np.percentile(ending_values, 10)
-percentile_90 = np.percentile(ending_values, 90)
 percentile_50 = np.percentile(ending_values, 50)
+percentile_90 = np.percentile(ending_values, 90)
+chance_of_profit = np.mean(ending_values > 1.0) * 100  # >1 = positive return
 
-profitable_simulations = np.sum(ending_values > portfolio_value_end)
-chance_of_profit = (profitable_simulations / num_simulations) * 100
+# --- Print relative growth in % ---
+print(f"10% of the simulations ended below {percentile_10*100:.2f}% return (VAR 90%)")
+print(f"Median ending return: {percentile_50*100:.2f}%")
+print(f"10% of the simulations ended above {percentile_90*100:.2f}% return")
+print(f"Chance of making a profit after 1 year: {chance_of_profit:.2f}%")
 
-print(f"10% of the simulations ended below ${percentile_10:,.2f}")
-print(f"10% of the simulations ended above ${percentile_90:,.2f}")
-print(f"The average return of the simulation was ${percentile_50:,.2f}")
-print(f"The chance of making a profit after 1 year was {chance_of_profit:.2f}%")
-# Plotting
-plt.figure(figsize=(14, 7))
+# --- Optional: show actual $ amounts ---
+print("\nCorresponding portfolio values (starting ${:,.2f}):".format(portfolio_value_end))
+print(f"10% worst-case: ${percentile_10*portfolio_value_end:,.2f}")
+print(f"Median outcome: ${percentile_50*portfolio_value_end:,.2f}")
+print(f"10% best-case: ${percentile_90*portfolio_value_end:,.2f}")
 
-# Plot all paths faintly
-plt.plot(simulated_price_paths, linewidth=0.5, alpha=0.2)
+# --- Plotting --- #
 
-# Plot average
-plt.plot(average_path, color='blue', linewidth=2, label='Average')
+# Normalize paths to relative growth for plotting
+relative_paths = simulated_price_paths / portfolio_value_end
 
-# Chart details
-plt.title('Monte Carlo Simulation of Portfolio Value')
-plt.xlabel('Days')
-plt.ylabel('Portfolio Value ($)')
-plt.grid(True)
+# Compute percentiles for plotting
+p10 = np.percentile(relative_paths, 10, axis=1)
+p50 = np.percentile(relative_paths, 50, axis=1)
+p90 = np.percentile(relative_paths, 90, axis=1)
+
+plt.figure(figsize=(12, 6))
+
+# Shaded 10–90% percentile band
+plt.fill_between(range(num_days), p10, p90, alpha=0.25, label="10–90% Range")
+
+# Median path
+plt.plot(p50, color='blue', linewidth=2, label='Median Path')
+
+# Optional: few sample paths for illustration
+sample_idx = np.random.choice(relative_paths.shape[1], 20, replace=False)
+plt.plot(relative_paths[:, sample_idx], color='gray', alpha=0.15, linewidth=1)
+
+# Starting line
+plt.axhline(1.0, linestyle='--', color='black', linewidth=1, label="Starting Value")
+
+plt.title("Monte Carlo Simulation — Relative Portfolio Growth")
+plt.xlabel("Trading Days")
+plt.ylabel("Relative Portfolio Value")
 plt.legend()
+plt.grid(True)
 plt.tight_layout()
 plt.show()
-
-#%% Fama French 5 factor model
-
-
