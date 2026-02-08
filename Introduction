@@ -1,0 +1,21 @@
+Hi viewer!
+
+My name is Michael Shelly, and I am a grad studentat GMU, getting my MS in Finance, after finishing my BS in Business with a concentration in Finance, and a minor in Economics. I have spent much of my time during school building financial models, and I have compiled some of my favorites into this github repository.
+While some of these have been built for school, like the DCF model, others are either inspired by the work I have done, or are fully original for my own curiosity! My most recent inspiration was to learn to build the underwriting model, which I made to better understand the fields of credit analysis and underwriting.
+While the models are not perfect, because they tend to be built for educational purposes rather than practical ones, I hope you can see the purpose in making these, and how they can be useful outside an academic standpoint.
+
+For anyone who has found my repository through applications to your company, here is a brief description of each of my models, for your convienience. I hope you enjoy!
+
+The DCF Clean Model, is an empty DCF model, designed for use on a public company, with market comps analysis from NetAdvantage. This model was built for use in 2 undergrad courses in firm valuation, written line by line by me, with guidance from the professor.
+
+The portfolio analysis project was my first real attempt at making something substantial in python, my code is not fantastic, since I was still fairly new to the language, but what it does is takes a set of buy and sell decisions across a time span, asked for by the user on running the program and compares the outcomes of this historic portfolio to 
+the an S&P 500 index (SPY). It then tells you different metrics of risk and reward you have gained from your holdings vs that of a passive index. it is worth noting it will not function without a file I downloaded on my own computer, as I was using this model for python practice and had not referenced personal files before. This issue is on line 428,
+and with a bit of work, can likely be either worked around or duplicated on other machines.
+
+The Underwriting model, which is my newest addition, asks for some basic property information, then runs a simulation of the mortgage cash flows, builds a pro-forma statement, and with user input, runs several stress tests as the user sees fit on the financials. While the model does have some assumptions about the property, like all units beig uniform,
+it makes no assumptions about the state of the mortgage on the property, with the number of months left on the loan, amortization length, FRM vs ARM, adjustable interest rates, and manual adjustments to adjust for pre=payment, the debt service is modeled very comprehensively.
+
+I thank you for taking interest in my work, and I hope these can help you in you search!
+
+Sincerely,
+Michael Shelly
